@@ -4,17 +4,16 @@
 #include <mpi.h>
 #include <random>
 
-using namespace std;
 const double PI = 3.14159265358979323846;
 
-complex<double>* generateRandomSignal(int size) {
-    random_device rd;
-    mt19937 gen(rd());
-    uniform_real_distribution<double> dist(-10.0, 10.0);
+std::complex<double>* generateRandomSignal(int size) {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<double> dist(-10.0, 10.0);
 
-    complex<double>* signal = new complex<double>[size];
+    std::complex<double>* signal = new std::complex<double>[size];
     for (int i = 0; i < size; ++i) {
-        signal[i] = complex<double>(dist(gen), dist(gen));
+        signal[i] = std::complex<double>(dist(gen), dist(gen));
     }
     return signal;
 }
@@ -28,9 +27,9 @@ int reverseBits(int index, int numBits) {
     return reversedIndex;
 }
 
-void iterativeFFT(complex<double>* signal, int size, int rank, int numProcs) {
-    int numStages = log2(size);
-    complex<double>* reorderedSignal = new complex<double>[size];
+void iterativeFFT(std::complex<double>* signal, int size, int rank, int numProcs) {
+    int numStages = std::log2(size);
+    std::complex<double>* reorderedSignal = new std::complex<double>[size];
 
     if (rank == 0) {
         for (int i = 0; i < size; i++) {
@@ -42,21 +41,21 @@ void iterativeFFT(complex<double>* signal, int size, int rank, int numProcs) {
 
     for (int stage = 1; stage <= numStages; stage++) {
         int segmentSize = 1 << stage;
-        complex<double> twiddleFactorRoot = polar(1.0, -2 * PI / segmentSize);
+        std::complex<double> twiddleFactorRoot = std::polar(1.0, -2 * PI / segmentSize);
 
         int numSegments = size / segmentSize;
         int baseSegmentsPerProcess = numSegments / numProcs;
         int extraSegments = numSegments % numProcs;
         int localNumSegments = baseSegmentsPerProcess + (rank < extraSegments ? 1 : 0);
-        int segmentStart = rank * baseSegmentsPerProcess * segmentSize + min(rank, extraSegments) * segmentSize;
+        int segmentStart = rank * baseSegmentsPerProcess * segmentSize + std::min(rank, extraSegments) * segmentSize;
 
         for (int seg = 0; seg < localNumSegments; seg++) {
             int startIdx = segmentStart + seg * segmentSize;
-            complex<double> twiddleFactor = 1;
+            std::complex<double> twiddleFactor = 1;
 
             for (int pairIndex = 0; pairIndex < segmentSize / 2; pairIndex++) {
-                complex<double> temp = twiddleFactor * reorderedSignal[startIdx + pairIndex + segmentSize / 2];
-                complex<double> upper = reorderedSignal[startIdx + pairIndex];
+                std::complex<double> temp = twiddleFactor * reorderedSignal[startIdx + pairIndex + segmentSize / 2];
+                std::complex<double> upper = reorderedSignal[startIdx + pairIndex];
 
                 reorderedSignal[startIdx + pairIndex] = upper + temp;
                 reorderedSignal[startIdx + pairIndex + segmentSize / 2] = upper - temp;
@@ -72,7 +71,7 @@ void iterativeFFT(complex<double>* signal, int size, int rank, int numProcs) {
             displacements[i] = (i > 0) ? (displacements[i - 1] + recvCounts[i - 1]) : 0;
         }
 
-        complex<double>* gatheredData = new complex<double>[size];
+        std::complex<double>* gatheredData = new std::complex<double>[size];
         MPI_Gatherv(reorderedSignal + segmentStart, localNumSegments * segmentSize * 2, MPI_DOUBLE,
             gatheredData, recvCounts, displacements, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
@@ -96,9 +95,9 @@ void iterativeFFT(complex<double>* signal, int size, int rank, int numProcs) {
     delete[] reorderedSignal;
 }
 
-void printComplexArray(complex<double>* signal, int size) {
+void printComplexArray(std::complex<double>* signal, int size) {
     for (int i = 0; i < size; i++) {
-        cout << "X[" << i << "] = " << signal[i] << endl;
+        std::cout << "X[" << i << "] = " << signal[i] << std::endl;
     }
 }
 
@@ -112,8 +111,8 @@ int main(int argc, char* argv[]) {
     //int fftSize = 1024 * 16;
     //complex<double>* inputSignal = generateRandomSignal(fftSize);
 
-    int fftSize = 16;  // Define the number of input elements
-    complex<double>* inputSignal = new complex<double>[fftSize] {
+    int fftSize = 16;
+    std::complex<double>* inputSignal = new std::complex<double>[fftSize] {
         {3.6, 2.6}, { 2.9, 6.3 }, { 5.6, 4.0 }, { 4.8, 9.1 },
         { 3.3, 0.4 }, { 5.9, 4.8 }, { 5.0, 2.6 }, { 4.3, 4.1 },
         { 1.5, 0.9 }, { 2.2, 3.4 }, { 3.7, 6.0 }, { 1.9, 2.3 },
@@ -121,7 +120,7 @@ int main(int argc, char* argv[]) {
     };
 
     if (rank == 0) {
-        cout << "Input:\n";
+        std::cout << "Input:\n";
         printComplexArray(inputSignal, fftSize);
     }
 
@@ -132,9 +131,9 @@ int main(int argc, char* argv[]) {
 
     if (rank == 0) {
         end_time = MPI_Wtime();
-        cout << "\nFFT Output:\n";
+        std::cout << "\nFFT Output:\n";
         printComplexArray(inputSignal, fftSize);
-        cout << "Execution time: " << end_time - start_time << " seconds" << endl;
+        std::cout << "Execution time: " << end_time - start_time << " seconds" << std::endl;
     }
 
     delete[] inputSignal;
