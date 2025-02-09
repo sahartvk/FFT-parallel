@@ -32,9 +32,13 @@ void iterativeFFT(vector<complex<double>>& signal, int rank, int size) {
 
     // Each process gets a portion of the reordered signal
     MPI_Bcast(reorderedSignal.data(), dataSize * 2, MPI_DOUBLE, 0, MPI_COMM_WORLD); // Broadcasting reordered signal
+    cout <<  rank <<" here1" << endl;
 
     // Iterative FFT computation
     for (int stage = 1; stage <= numStages; stage++) {
+        cout << "satage: " << stage << endl;
+        cout << rank << " here2" << endl;
+
         int segmentSize = 1 << stage;  // 2^stage: Current FFT segment size
         complex<double> twiddleFactorRoot = polar(1.0, -2 * PI / segmentSize); // Twiddle factor
 
@@ -42,18 +46,27 @@ void iterativeFFT(vector<complex<double>>& signal, int rank, int size) {
         int numSegmentsPerProcess = dataSize / segmentSize / size;
         int numSegments = dataSize / segmentSize;
         if ((numSegmentsPerProcess == 0 && rank < numSegments) || numSegmentsPerProcess > 0) {
+            cout << rank << " here3" << endl;
+
             if (numSegmentsPerProcess == 0)
             {
                 numSegmentsPerProcess = 1;
+                cout << rank << " here4" << endl;
+
             }
+            // main part of code
             int segmentStart = rank * numSegmentsPerProcess * segmentSize;
 
             // Compute FFT for the assigned segments
             for (int seg = 0; seg < numSegmentsPerProcess; seg++) {
+                cout << rank << " here5" << endl;
+
                 int startIdx = segmentStart + seg * segmentSize;
                 complex<double> twiddleFactor = 1;
 
                 for (int pairIndex = 0; pairIndex < segmentSize / 2; pairIndex++) {
+                    cout << rank << " here6" << endl;
+
                     complex<double> temp = twiddleFactor * reorderedSignal[startIdx + pairIndex + segmentSize / 2];
                     complex<double> upper = reorderedSignal[startIdx + pairIndex];
                     reorderedSignal[startIdx + pairIndex] = upper + temp;
@@ -61,35 +74,46 @@ void iterativeFFT(vector<complex<double>>& signal, int rank, int size) {
                     twiddleFactor *= twiddleFactorRoot; // Update twiddle factor
                 }
             }
-        }
 
-        // Gather results back to master process, but not in the case of np=1 ??? 
-        //TODO:Fix errors
-        if (size > 1) {
-            if (rank == 0) {
+
+            // Gather results back to master process
+            if ((dataSize / segmentSize / size) != 0){
+            //if (segmentSize != dataSize) {
+
+                cout << rank << " before here7" << endl;
                 vector<complex<double>> recvBuffer(dataSize);
                 MPI_Gather(reorderedSignal.data() + segmentStart, numSegmentsPerProcess * segmentSize * 2, MPI_DOUBLE,
                     recvBuffer.data(), numSegmentsPerProcess * segmentSize * 2, MPI_DOUBLE, 0, MPI_COMM_WORLD);
                 reorderedSignal = recvBuffer;
+                cout << rank << " here7" << endl;
+
+                
             }
-            else {
+            /*else {
                 MPI_Gather(reorderedSignal.data() + segmentStart, numSegmentsPerProcess * segmentSize * 2, MPI_DOUBLE,
                     nullptr, 0, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-            }
+            }*/
+            cout << rank <<" here8" << endl;
+
+        }
+        else {
+            //MPI_Finalize();
+            cout << rank << " elase" << endl;
+
         }
 
-
-
-        if (rank == 0) {
-            // Distribute data back to processes for the next stage
-            MPI_Bcast(reorderedSignal.data(), dataSize * 2, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        }
+        
+        // Distribute data back to processes for the next stage
+        MPI_Bcast(reorderedSignal.data(), dataSize * 2, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        cout << rank << " here9" << endl;
 
 
     }
 
     // Copy the result back to the signal
     signal = reorderedSignal;
+    cout << rank << " here10" << endl;
+
 }
 
 // Function to print complex arrays
@@ -108,6 +132,11 @@ int main(int argc, char* argv[]) {
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
     int fftSize = 16; // FFT size (must be a power of 2)
+
+    /*vector<complex<double>> inputSignal = {
+        {3.6, 2.6}, {2.9, 6.3}, {5.6, 4.0}, {4.8, 9.1},
+        {3.3, 0.4}, {5.9, 4.8}, {5.0, 2.6}, {4.3, 4.1}
+    };*/ 
 
     // Example input: 16-point sequence
     vector<complex<double>> inputSignal = {
