@@ -6,6 +6,11 @@
 
 const double PI = 3.14159265358979323846;
 
+// Function to check if a number is a power of 2
+bool isPowerOfTwo(int n) {
+    return (n > 0) && ((n & (n - 1)) == 0);
+}
+
 std::complex<double>* generateRandomSignal(int size) {
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -109,15 +114,32 @@ int main(int argc, char* argv[]) {
     double start_time, end_time;
 
     //int fftSize = 1024 * 16;
-    //complex<double>* inputSignal = generateRandomSignal(fftSize);
-
     int fftSize = 16;
-    std::complex<double>* inputSignal = new std::complex<double>[fftSize] {
+
+    if (rank == 0) {
+        std::cout << "Enter FFT size (must be a power of 2): ";
+        std::cin >> fftSize;
+
+        // Check if FFT size is a power of 2
+        if (!isPowerOfTwo(fftSize)) {
+            std::cerr << "Error: FFT size must be a power of 2." << std::endl;
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+
+        // Check if number of processors is valid
+        if (!isPowerOfTwo(size) || size > fftSize / 2) {
+            std::cerr << "Error: Number of processors must be a power of 2 and less than FFT size / 2." << std::endl;
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+    }
+
+    std::complex<double>* inputSignal = generateRandomSignal(fftSize);
+    /*std::complex<double>* inputSignal = new std::complex<double>[fftSize] {
         {3.6, 2.6}, { 2.9, 6.3 }, { 5.6, 4.0 }, { 4.8, 9.1 },
         { 3.3, 0.4 }, { 5.9, 4.8 }, { 5.0, 2.6 }, { 4.3, 4.1 },
         { 1.5, 0.9 }, { 2.2, 3.4 }, { 3.7, 6.0 }, { 1.9, 2.3 },
         { 6.4, 0.7 }, { 5.5, 2.0 }, { 4.6, 1.2 }, { 3.1, 5.6 }
-    };
+    };*/
 
     if (rank == 0) {
         std::cout << "Input:\n";
