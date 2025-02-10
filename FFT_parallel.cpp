@@ -42,7 +42,7 @@ void iterativeFFT(std::complex<double>* signal, int size, int rank, int numProcs
         }
     }
 
-    MPI_Bcast(reorderedSignal, size * 2, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Bcast(reorderedSignal, 2 * size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     for (int stage = 1; stage <= numStages; stage++) {
         int segmentSize = 1 << stage;
@@ -76,7 +76,11 @@ void iterativeFFT(std::complex<double>* signal, int size, int rank, int numProcs
             displacements[i] = (i > 0) ? (displacements[i - 1] + recvCounts[i - 1]) : 0;
         }
 
-        std::complex<double>* gatheredData = new std::complex<double>[size];
+        std::complex<double>* gatheredData = nullptr;
+        if (rank == 0) {
+            gatheredData = new std::complex<double>[size];
+        }
+
         MPI_Gatherv(reorderedSignal + segmentStart, localNumSegments * segmentSize * 2, MPI_DOUBLE,
             gatheredData, recvCounts, displacements, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
@@ -86,11 +90,11 @@ void iterativeFFT(std::complex<double>* signal, int size, int rank, int numProcs
             }
         }
 
-        MPI_Bcast(reorderedSignal, size * 2, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        MPI_Bcast(reorderedSignal, 2 * size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
         delete[] recvCounts;
         delete[] displacements;
-        delete[] gatheredData;
+        if (gatheredData) delete[] gatheredData;
     }
 
     for (int i = 0; i < size; i++) {
@@ -113,49 +117,37 @@ int main(int argc, char* argv[]) {
     MPI_Comm_size(MPI_COMM_WORLD, &size);
     double start_time, end_time;
 
-    //int fftSize = 1024 * 16;
-    int fftSize = 16;
+    int fftSize = 16; // Default size, will be updated by rank 0
 
     if (rank == 0) {
         std::cout << "Enter FFT size (must be a power of 2): ";
         std::cin >> fftSize;
 
-        // Check if FFT size is a power of 2
         if (!isPowerOfTwo(fftSize)) {
             std::cerr << "Error: FFT size must be a power of 2." << std::endl;
             MPI_Abort(MPI_COMM_WORLD, 1);
         }
 
-        // Check if number of processors is valid
         if (!isPowerOfTwo(size) || size > fftSize / 2) {
             std::cerr << "Error: Number of processors must be a power of 2 and less than FFT size / 2." << std::endl;
             MPI_Abort(MPI_COMM_WORLD, 1);
         }
     }
 
-    std::complex<double>* inputSignal = generateRandomSignal(fftSize);
-    /*std::complex<double>* inputSignal = new std::complex<double>[fftSize] {
-        {3.6, 2.6}, { 2.9, 6.3 }, { 5.6, 4.0 }, { 4.8, 9.1 },
-        { 3.3, 0.4 }, { 5.9, 4.8 }, { 5.0, 2.6 }, { 4.3, 4.1 },
-        { 1.5, 0.9 }, { 2.2, 3.4 }, { 3.7, 6.0 }, { 1.9, 2.3 },
-        { 6.4, 0.7 }, { 5.5, 2.0 }, { 4.6, 1.2 }, { 3.1, 5.6 }
-    };*/
+    MPI_Bcast(&fftSize, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-    if (rank == 0) {
-        std::cout << "Input:\n";
-        printComplexArray(inputSignal, fftSize);
-    }
+    std::complex<double>* inputSignal = generateRandomSignal(fftSize);
 
     if (rank == 0) {
         start_time = MPI_Wtime();
     }
+
     iterativeFFT(inputSignal, fftSize, rank, size);
 
     if (rank == 0) {
         end_time = MPI_Wtime();
-        std::cout << "\nFFT Output:\n";
-        printComplexArray(inputSignal, fftSize);
-        std::cout << "Execution time: " << end_time - start_time << " seconds" << std::endl;
+        //std::cout << "Execution time: " << (end_time - start_time) * 1e6 << " microseconds" << std::endl;
+        std::cout << "Execution time: " << (end_time - start_time) * 1000 << " miliseconds" << std::endl;
     }
 
     delete[] inputSignal;
